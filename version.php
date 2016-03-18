@@ -28,5 +28,5 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = 'tool_fixlinks';
 $plugin->maturity  = MATURITY_ALPHA;
 $plugin->requires  = 2011120500; // Moodle >= 2.2
-$plugin->version   = 2016031603;
-$plugin->release   = '2016-03-16 (03)';
+$plugin->version   = 2016031804;
+$plugin->release   = '2016-03-18 (04)';

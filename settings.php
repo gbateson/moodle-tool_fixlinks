@@ -26,6 +26,6 @@
 defined('MOODLE_INTERNAL') || die;
 
 if ($hassiteconfig) {
-    $ADMIN->add('development', new admin_externalpage('toolfixlinks', get_string('pluginname', 'tool_fixlinks'),
-                                                      $CFG->wwwroot.'/'.$CFG->admin.'/tool/fixlinks/index.php'));
+    $ADMIN->add('tools', new admin_externalpage('toolfixlinks', get_string('pluginname', 'tool_fixlinks'),
+                                                $CFG->wwwroot.'/'.$CFG->admin.'/tool/fixlinks/index.php'));
 }
