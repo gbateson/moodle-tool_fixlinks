@@ -723,7 +723,8 @@ class tool_fixlinks_form extends moodleform {
     protected function locate_sourcefile_in_filesystem($instances, $filepath, $filename, $contenthash) {
         $source = ltrim($filepath, '/').$filename;
         foreach ($instances as $instance) {
-            if ($listing = $instance->get_listing($filepath)) {
+            $path = $this->build_node_path($instance, $filepath);
+            if ($listing = $instance->get_listing($path)) {
                 foreach ($listing['list'] as $file) {
                     if (isset($file['source']) && $file['source']==$source) {
                         return $source;
@@ -732,6 +733,25 @@ class tool_fixlinks_form extends moodleform {
             }
         }
         return false;
+    }
+
+    /**
+     *  build_node_path
+     *
+     * @param $object repository $instance
+     * @param string  $path
+     */
+    protected function build_node_path($instance, $path) {
+        // in Moodle >= 3.1 this code mimics the protected methods 
+        // "build_node_path($mode, $path)" in "repository/xxx/lib.php"
+        if (method_exists($instance, 'build_node_path')) {
+            switch (get_class($instance)) {
+                case 'repository_filesystem': return 'browse:'.base64_encode($path).':';
+                case 'repository_googledrive': // same as onedrive, so drop though ...
+                case 'repository_ondedrive': return 'browse:|'.urlencode($path);
+            }
+        }
+        return $path;
     }
 
     /**
