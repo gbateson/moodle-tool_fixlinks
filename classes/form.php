@@ -748,7 +748,7 @@ class tool_fixlinks_form extends moodleform {
             switch (get_class($instance)) {
                 case 'repository_filesystem': return 'browse:'.base64_encode($path).':';
                 case 'repository_googledrive': // same as onedrive, so drop though ...
-                case 'repository_ondedrive': return 'browse:|'.urlencode($path);
+                case 'repository_ondedrive': return 'browse|'.urlencode($path);
             }
         }
         return $path;
