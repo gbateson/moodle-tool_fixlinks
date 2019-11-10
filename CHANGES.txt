@@ -2,26 +2,26 @@
 Change log for tool_fixlinks
 ========================================
 
-2017-06-15 (07)
- -  mimic 'build_node_path' to encode directory paths in Moodle >= 3.1 
+2019-11-10 (09)
+ - standardize layout and spelling in CHANGES.txt
 
-2017-06-15 (06)
- -  mimic 'build_node_path' to encode directory paths in Moodle >= 3.1 
+2017-06-15 (07)
+ - mimic 'build_node_path' to encode directory paths in Moodle >= 3.1
 
 2016-08-24 (05)
- -  standardize 'die;' to 'die();' 
+ - standardize 'die;' to 'die();'
 
 2016-03-18 (04)
- -  move this item to Plugins -> Admin tools in navigation menu 
+ - move this item to Plugins -> Admin tools in navigation menu
 
 2016-03-16 (03)
- -  fix name of constructor method in tool_fixlinks_form class 
+ - fix name of constructor method in tool_fixlinks_form class
 
 2016-02-01 (02)
- -  use moodleform::construct() when available for compatability with Moodle >= 3.0 
+ - use moodleform::construct() when available for compatability with Moodle >= 3.0
 
 2015-12-02 (01)
- -  tool/fixlinks prevent timeout and disable activities that cannot yet be fixed 
+ - prevent timeout and disable activities that cannot yet be fixed
 
 2015-04-01 (00)
- -  tool/fixlinks initial import of fixlinks files 
+ - initial import of fixlinks files
