@@ -91,7 +91,7 @@ class tool_fixlinks_form extends moodleform {
         $strman = get_string_manager();
 
         $fixnotyetavailable = get_string('fixnotyetavailable', $tool);
-        $fixnotyetavailable = html_writer::tag('span', "($fixnotyetavailable)", array('class' => 'dimmed_text'));
+        $fixnotyetavailable = html_writer::tag('span', "($fixnotyetavailable)", array('class' => 'ml-1 dimmed_text'));
 
         // ==================================
         // courses and activity types
@@ -126,7 +126,7 @@ class tool_fixlinks_form extends moodleform {
 
         $elements = array();
         foreach ($this->$name as $modname) {
-            if (count($elements) > 0) {
+            if (count($elements)) {
                 $elements[] = $this->create_linebreak($mform);
             }
             $text = get_string('pluginname', 'mod_'.$modname);
@@ -156,12 +156,15 @@ class tool_fixlinks_form extends moodleform {
         foreach ($this->$name as $type) {
             $text = 'repository_'.$type;
             if ($strman->string_exists('pluginname', $text)) {
+                if (count($elements)) {
+                    $elements[] = $this->create_linebreak($mform);
+                }
                 $text = get_string('pluginname', $text);
                 $elements[] = $mform->createElement('checkbox', $name.'['.$type.']', '', $text);
             }
         }
 
-        $mform->addGroup($elements, $elements_name, $label, html_writer::empty_tag('br'), false);
+        $mform->addGroup($elements, $elements_name, $label, ' ', false);
         $mform->addHelpButton($elements_name, $name, $tool);
 
         $defaultvalue = 'coursefiles,filesystem';
@@ -183,22 +186,27 @@ class tool_fixlinks_form extends moodleform {
         $elements[] = $mform->createElement('select', 'filterpathop', '', $options);
         $elements[] = $mform->createElement('static', '', '', ' ');
         $elements[] = $mform->createElement('text', 'filterpathtext', '', array('size' => 20));
+        $elements[] = $this->create_linebreak($mform);
 
         $elements[] = $this->create_linebreak($mform);
 
         // remove path prefix
         $name = 'removepathprefix';
         $label = get_string($name, $tool);
-        $elements[] = $mform->createElement('static', '', '', $label.' ');
+        $label = html_writer::tag('span', $label, array('class' => 'mr-2'));
+        $elements[] = $mform->createElement('static', '', '', $label);
         $elements[] = $mform->createElement('text', $name, '', array('size' => 20));
+        $elements[] = $this->create_linebreak($mform);
 
         $elements[] = $this->create_linebreak($mform);
 
         // add path prefix
         $name = 'addpathprefix';
         $label = get_string($name, $tool);
-        $elements[] = $mform->createElement('static', '', '', $label.' ');
+        $label = html_writer::tag('span', $label, array('class' => 'mr-2'));
+        $elements[] = $mform->createElement('static', '', '', $label);
         $elements[] = $mform->createElement('text', $name, '', array('size' => 20));
+        $elements[] = $this->create_linebreak($mform);
 
         $elements[] = $this->create_linebreak($mform);
 
@@ -300,6 +308,36 @@ class tool_fixlinks_form extends moodleform {
         if (method_exists($mform, 'setExpanded')) {
             $mform->setExpanded($name, $expanded);
         }
+    }
+
+    /**
+     * create_linebreak
+     *
+     * @param object $mform
+     */
+    public function create_linebreak($mform) {
+        global $CFG;
+
+        static $bootstrap =  null;
+        if ($bootstrap === null) {
+            if (file_exists($CFG->dirroot.'/theme/bootstrapbase')) {
+                $bootstrap = 3; // Moodle >= 2.5 (until 3.6)
+            } else if (file_exists($CFG->dirroot.'/theme/boost')) {
+                $bootstrap = 4; // Moodle >= 3.2 (until latest :-)
+            } else {
+                $bootstrap = 0;
+            }
+        }
+
+        if ($bootstrap) {
+            // Most modern themes use flex layout, so the only way to force a newline
+            // is to insert a DIV that is fullwidth and minimal height.
+            $params = array('style' => 'width: 100%; height: 4px;');
+            $linebreak = html_writer::tag('div', '', $params);
+        } else {
+            $linebreak = html_writer::empty_tag('br');
+        }
+        return $mform->createElement('static', '', '', $linebreak);
     }
 
     /**
@@ -558,7 +596,11 @@ class tool_fixlinks_form extends moodleform {
                     'sortorder' => $sortorder, 'itemid' => $itemid, 'filepath' => $filepath, 'filename' => $filename
                 );
 
-                $contenthash = $file->get_contenthash();
+                if (empty($data->matchcontent)) {
+                    $contenthash = '';
+                } else {
+                    $contenthash = $file->get_contenthash();
+                }
                 $referencefileid = $file->get_referencefileid();
 
                 if ($data->action==self::ACTION_LINK) {
@@ -773,7 +815,7 @@ class tool_fixlinks_form extends moodleform {
      * @param string  $path
      */
     protected function build_node_path($instance, $path) {
-        // in Moodle >= 3.1 this code mimics the protected methods 
+        // in Moodle >= 3.1 this code mimics the protected methods
         // "build_node_path($mode, $path)" in "repository/xxx/lib.php"
         if (method_exists($instance, 'build_node_path')) {
             switch (get_class($instance)) {
@@ -811,20 +853,44 @@ class tool_fixlinks_form extends moodleform {
      * @todo Finish documenting this function
      */
     protected function locate_file($contextid, $component, $filearea, $itemid, $filepath, $filename, $contenthash) {
-        $fs = get_file_storage();
-        // $fs->content_exists($contenthash)==$contenthash
-        if ($fs->file_exists($contextid, $component, $filearea, $itemid, $filepath, $filename)) {
-            return file_storage::pack_reference(array(
-                'contextid' => $contextid,
-                'component' => $component,
-                'filearea'  => $filearea,
-                'itemid'    => $itemid,
-                'filepath'  => $filepath,
-                'filename'  => $filename
-            ));
-        } else {
-            return false; // file not found
+        global $DB;
+
+        // Try to locate the file via its filename.
+        if ($filename) {
+            $fs = get_file_storage();
+            if ($fs->file_exists($contextid, $component, $filearea, $itemid, $filepath, $filename)) {
+                $params = array(
+                    'contextid' => $contextid,
+                    'component' => $component,
+                    'filearea'  => $filearea,
+                    'itemid'    => $itemid,
+                    'filepath'  => $filepath,
+                    'filename'  => $filename);
+                return file_storage::pack_reference($params);
+            }
         }
+
+        // Try to locate the file via its contenthash.
+        if ($contenthash) {
+            $params = array('contenthash' => $contenthash,
+                            'contextid' => $contextid,
+                            'component' => $component,
+                            'filearea' => $filearea);
+            if ($file = $DB->get_record('files', $params)) {
+                $params = array(
+                    'contextid' => $contextid,
+                    'component' => $component,
+                    'filearea'  => $filearea,
+                    'itemid'    => $file->itemid,
+                    'filepath'  => $file->filepath,
+                    'filename'  => $file->filename
+                );
+                return file_storage::pack_reference($params);
+            }
+        }
+
+        // File not found.
+        return false;
     }
 
     /**

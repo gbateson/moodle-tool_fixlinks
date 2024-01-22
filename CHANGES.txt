@@ -2,6 +2,9 @@
 Change log for tool_fixlinks
 ========================================
 
+2022-01-22 (12)
+ - add Boost-compatible line breaks in main form
+
 2022-01-22 (11)
  - add message to CHANGES.txt
 
