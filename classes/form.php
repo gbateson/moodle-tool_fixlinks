@@ -126,6 +126,9 @@ class tool_fixlinks_form extends moodleform {
 
         $elements = array();
         foreach ($this->$name as $modname) {
+            if (count($elements) > 0) {
+                $elements[] = $this->create_linebreak($mform);
+            }
             $text = get_string('pluginname', 'mod_'.$modname);
             if (! method_exists($this, 'fix_links_'.$modname)) {
                 $elements[] = $mform->createElement('static', '', '', "$text $fixnotyetavailable");
@@ -134,7 +137,7 @@ class tool_fixlinks_form extends moodleform {
             }
         }
 
-        $mform->addGroup($elements, $elements_name, $label, html_writer::empty_tag('br'), false);
+        $mform->addGroup($elements, $elements_name, $label, ' ', false);
         $mform->addHelpButton($elements_name, $name, $tool);
 
         $defaultvalue = ''; // $this->defaultvalue($name);
@@ -180,21 +183,24 @@ class tool_fixlinks_form extends moodleform {
         $elements[] = $mform->createElement('select', 'filterpathop', '', $options);
         $elements[] = $mform->createElement('static', '', '', ' ');
         $elements[] = $mform->createElement('text', 'filterpathtext', '', array('size' => 20));
-        $elements[] = $mform->createElement('static', '', '', html_writer::empty_tag('br'));
+
+        $elements[] = $this->create_linebreak($mform);
 
         // remove path prefix
         $name = 'removepathprefix';
         $label = get_string($name, $tool);
         $elements[] = $mform->createElement('static', '', '', $label.' ');
         $elements[] = $mform->createElement('text', $name, '', array('size' => 20));
-        $elements[] = $mform->createElement('static', '', '', html_writer::empty_tag('br'));
+
+        $elements[] = $this->create_linebreak($mform);
 
         // add path prefix
         $name = 'addpathprefix';
         $label = get_string($name, $tool);
         $elements[] = $mform->createElement('static', '', '', $label.' ');
         $elements[] = $mform->createElement('text', $name, '', array('size' => 20));
-        $elements[] = $mform->createElement('static', '', '', html_writer::empty_tag('br'));
+
+        $elements[] = $this->create_linebreak($mform);
 
         // match path (group)
         $name = 'matchpath';
@@ -236,6 +242,31 @@ class tool_fixlinks_form extends moodleform {
             $js = '<script type="text/javascript" src="'.$src.'"></script>';
             $mform->addElement('static', 'form_js', '', $js);
         }
+    }
+
+    protected function create_linebreak($mform) {
+        global $CFG;
+
+        static $bootstrap =  null;
+        if ($bootstrap === null) {
+            if (file_exists($CFG->dirroot.'/theme/bootstrapbase')) {
+                $bootstrap = 3; // Moodle >= 2.5 (until 3.6)
+            } else if (file_exists($CFG->dirroot.'/theme/boost')) {
+                $bootstrap = 4; // Moodle >= 3.2
+            } else {
+                $bootstrap = 0;
+            }
+        }
+
+        if ($bootstrap) {
+            // Most modern themes use flex layout, so the only way to force a newline
+            // is to insert a DIV that is fullwidth and minimal height.
+            $params = array('style' => 'width: 100%; height: 4px;');
+            $linebreak = html_writer::tag('div', '', $params);
+        } else {
+            $linebreak = html_writer::empty_tag('br');
+        }
+        return $mform->createElement('static', '', '', $linebreak);
     }
 
     /**

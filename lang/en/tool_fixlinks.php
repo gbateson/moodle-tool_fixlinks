@@ -31,11 +31,11 @@ $string['pageheader'] = 'Fix files and URL links';
 $string['action'] = 'Action';
 $string['action_help'] = 'This setting specifies what action is to be taken with files used by the selected activity modules in the the selected courses.
 
-**Link files**
-: Where possible files that have been copied to file areas in the selected activities will be converted to aliasses to files in the selected types of repository
+**Link files**  
+&nbsp; Where possible files that have been copied to file areas in the selected activities will be converted to aliasses to files in the selected types of repository
 
-**Unlink files**
-: Any files that are aliasses to files in the selected types of repository will be converted to independent copies of the alias destination file.';
+**Unlink files**  
+&nbsp; Any files that are aliasses to files in the selected types of repository will be converted to independent copies of the alias destination file.';
 $string['actionlink'] = 'Link files';
 $string['actionunlink'] = 'Unlink files';
 $string['courses_help'] = 'Select one or more courses in which you wish to fix links in the selected types of resource and activity.';

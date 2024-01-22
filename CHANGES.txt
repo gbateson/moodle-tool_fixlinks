@@ -2,6 +2,15 @@
 Change log for tool_fixlinks
 ========================================
 
+2022-01-22 (11)
+ - add message to CHANGES.txt
+
+2022-01-22 (11)
+ - add line break in Boost themes
+
+2021-09-14 (10)
+ - admin_tool modify markdown syntax for long help messages (for compatability with Moodle 3.11)
+
 2019-11-10 (09)
  - standardize layout and spelling in CHANGES.txt
 
