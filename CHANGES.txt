@@ -2,6 +2,9 @@
 Change log for tool_fixlinks
 ========================================
 
+2022-01-23 (13)
+ - remove duplicate copy of method to create linebreak
+
 2022-01-22 (12)
  - add Boost-compatible line breaks in main form
 

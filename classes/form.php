@@ -311,36 +311,6 @@ class tool_fixlinks_form extends moodleform {
     }
 
     /**
-     * create_linebreak
-     *
-     * @param object $mform
-     */
-    public function create_linebreak($mform) {
-        global $CFG;
-
-        static $bootstrap =  null;
-        if ($bootstrap === null) {
-            if (file_exists($CFG->dirroot.'/theme/bootstrapbase')) {
-                $bootstrap = 3; // Moodle >= 2.5 (until 3.6)
-            } else if (file_exists($CFG->dirroot.'/theme/boost')) {
-                $bootstrap = 4; // Moodle >= 3.2 (until latest :-)
-            } else {
-                $bootstrap = 0;
-            }
-        }
-
-        if ($bootstrap) {
-            // Most modern themes use flex layout, so the only way to force a newline
-            // is to insert a DIV that is fullwidth and minimal height.
-            $params = array('style' => 'width: 100%; height: 4px;');
-            $linebreak = html_writer::tag('div', '', $params);
-        } else {
-            $linebreak = html_writer::empty_tag('br');
-        }
-        return $mform->createElement('static', '', '', $linebreak);
-    }
-
-    /**
      * fix_links
      */
     public function fix_links() {
