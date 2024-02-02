@@ -372,6 +372,7 @@ class tool_fixlinks_form extends moodleform {
             list($where[1], $params[1]) = $DB->get_in_or_equal($modnames);
 
             $select = 'cm.id, cm.course, cm.module, '.
+                      'cm.instance AS instanceid, '.
                       'm.name AS modulename, m.id AS moduleid';
             $from   = '{course_modules} cm '.
                       'JOIN {modules} m ON cm.module = m.id';
@@ -402,7 +403,7 @@ class tool_fixlinks_form extends moodleform {
                 'failed'   => get_string('failed',   $tool)
             );
 
-            // loop through answer records
+            // loop through course_module records
             $course = null;
             foreach ($rs as $cm) {
                 $i++; // increment record count
@@ -490,8 +491,112 @@ class tool_fixlinks_form extends moodleform {
      * @todo Finish documenting this function
      */
     protected function fix_links_hotpot($data, $repositorytypes, $course, $cm) {
+        $component = 'mod_hotpot';
         $fileareas = array('sourcefile', 'configfile');
-        $this->fix_fileareas($data, $repositorytypes, $course, $cm, 'mod_hotpot', $fileareas);
+        $this->fix_hotpot_files($data, $repositorytypes, $course, $cm, $component, $fileareas);
+        $this->fix_fileareas($data, $repositorytypes, $course, $cm, $component, $fileareas);
+    }
+
+    /**
+     * fix_hotpot_files
+     *
+     * @param object  $data
+     * @param array   $repositorytypes
+     * @param object  $course
+     * @param object  $cm
+     * @param string  $component
+     * @param array  $fileareas
+     * @return void
+     * @todo Finish documenting this function
+     */
+    protected function fix_hotpot_files($data, $repositorytypes, $course, $cm, $component, $fileareas) {
+        global $DB;
+
+        // Fetch the Hotpot record for this course module.
+        if ($record = $DB->get_record($cm->modulename, array('id' => $cm->instanceid))) {
+            $contextid = $cm->context->id;
+            $filesystems = $this->get_filesystems($repositorytypes, $course);
+            if ($fixed = $this->fix_files($record, $filesystems, $contextid, $component, $fileareas)) {
+                foreach ($fixed as $filearea => $path) {
+                    $record->$filearea = $path;
+                }
+                $DB->update_record($cm->modulename, $record);
+            }
+        }
+    }
+
+    /**
+     * fix_taskchain_files
+     *
+     * @param object  $data
+     * @param array   $repositorytypes
+     * @param object  $course
+     * @param object  $cm
+     * @param string  $component
+     * @param array  $fileareas
+     * @return void
+     * @todo Finish documenting this function
+     */
+    protected function fix_taskchain_files($data, $repositorytypes, $course, $cm, $component, $fileareas) {
+        global $DB;
+
+        // Fetch the Hotpot record for this course module.
+        $select = 'tt.*, tc.parentid AS taskchainid';
+        $from   = '{taskchain_tasks} tt, {taskchain_chains} tc';
+        $where  = 'tt.chainid = tc.id AND tc.parenttype = ? AND tc.parentid = ?';
+        $params = array(0, $cm->instanceid);
+        if ($records = $DB->get_records_sql("SELECT $select FROM $from WHERE $where", $params)) {
+            $contextid = $cm->context->id;
+            $filesystems = $this->get_filesystems($repositorytypes, $course);
+            foreach ($records as $record) {
+                if ($fixed = $this->fix_files($record, $filesystems, $contextid, $component, $fileareas)) {
+                    foreach ($fixed as $filearea => $path) {
+                        $record->$filearea = $path;
+                    }
+                    $DB->update_record('taskchain_tasks', $record);
+                }
+            }
+        }
+    }
+
+    /**
+     * fix_files
+     *
+     * @param object  $record
+     * @param array   $filesystems
+     * @param object  $contextid
+     * @param object  $component
+     * @param array   $fileareas
+     * @param integer $itemid (optional, default=0)
+     * @return void
+     * @todo Finish documenting this function
+     */
+    protected function fix_files($record, $filesystems, $contextid, $component, $fileareas, $itemid=0) {
+
+        $fixed = [];
+        foreach ($fileareas as $filearea) {
+
+            // Check if file path is specified.
+            if (empty($record->$filearea)) {
+                continue;
+            }
+
+            // Extract filename and filepath from $hotpot->$filearea
+            // e.g. /hp6.2/jmix.jmx => "/hp6.2/" + "jmix.jmx".
+            $filename = basename($record->$filearea);
+            $filepath = dirname($record->$filearea);
+            if ($filepath = trim($filepath, '/.')) {
+                $filepath = "/$filepath/";
+            } else {
+                $filepath = '/';
+            }
+
+            // Check if file is in expected location.
+            if ($file = $this->fix_file($filesystems, $contextid, $component, $filearea, $itemid, $filepath, $filename)) {
+                $fixed[$filearea] = $file->get_filepath().$file->get_filename();
+            }
+        }
+        return (count($fixed) ? $fixed : false);
     }
 
     /**
@@ -507,6 +612,7 @@ class tool_fixlinks_form extends moodleform {
     protected function fix_links_taskchain($data, $repositorytypes, $course, $cm) {
         $fileareas = array('sourcefile', 'configfile');
         $this->fix_fileareas($data, $repositorytypes, $course, $cm, 'mod_taskchain', $fileareas);
+        $this->fix_taskchain_files($data, $repositorytypes, $course, $cm, 'mod_taskchain', $fileareas);
     }
 
     /**
@@ -524,13 +630,10 @@ class tool_fixlinks_form extends moodleform {
     protected function fix_fileareas($data, $repositorytypes, $course, $cm, $component, $fileareas) {
         global $DB, $USER;
 
-        if (in_array('filesystem', $repositorytypes)) {
-            $params = array($course->context, self::get_context(CONTEXT_SYSTEM));
-            $params = array('type'=> 'filesystem', 'context' => $params);
-            $instances = repository::get_instances($params);
-        }
+        // Get instances of filesystem repositories, if any.
+        $filesystems = $this->get_filesystems($repositorytypes, $course);
 
-        if (in_array('user', $repositorytypes)) {
+        if (in_array('user', $repositorytypes) && empty($USER->context)) {
             $USER->context = self::get_context(CONTEXT_USER, $USER->id);
         }
 
@@ -573,6 +676,7 @@ class tool_fixlinks_form extends moodleform {
                 }
                 $referencefileid = $file->get_referencefileid();
 
+                // Do we want to convert a file to a link?
                 if ($data->action==self::ACTION_LINK) {
 
                     // check file is not already an alias
@@ -597,7 +701,7 @@ class tool_fixlinks_form extends moodleform {
                                 $sourcefile = $this->locate_sourcefile_in_coursefiles($course, $filepath, $filename, $contenthash);
                                 break;
                             case 'filesystem':
-                                $sourcefile = $this->locate_sourcefile_in_filesystem($instances, $filepath, $filename, $contenthash);
+                                $sourcefile = $this->locate_sourcefile_in_filesystem($filesystems, $filepath, $filename);
                                 break;
                             case 'user':
                                 $sourcefile = $this->locate_sourcefile_in_user($USER, $filepath, $filename, $contenthash);
@@ -622,6 +726,7 @@ class tool_fixlinks_form extends moodleform {
                         }
                     }
 
+                // Do we want to convert a link to a file?
                 } else if ($data->action==self::ACTION_UNLINK) {
 
                     // get check this file is an alias
@@ -696,6 +801,23 @@ class tool_fixlinks_form extends moodleform {
     }
 
     /**
+     * get_filesystems
+     *
+     * @param array $repositorytypes
+     * @param object $course
+     * @return void
+     * @todo Finish documenting this function
+     */
+    protected function get_filesystems($repositorytypes, $course) {
+        if (in_array('filesystem', $repositorytypes)) {
+            $params = array($course->context, self::get_context(CONTEXT_SYSTEM));
+            $params = array('type'=> 'filesystem', 'context' => $params);
+            return repository::get_instances($params);
+        }
+        return null;
+    }
+
+    /**
      * filter_path
      *
      * @param object $data
@@ -757,19 +879,19 @@ class tool_fixlinks_form extends moodleform {
     /**
      * locate_sourcefile_in_filesystem
      *
-     * @param object  $course
+     * @param array   $filesystems
      * @param string  $filepath
      * @param string  $filename
      * @return object or false
      * @todo Finish documenting this function
      */
-    protected function locate_sourcefile_in_filesystem($instances, $filepath, $filename, $contenthash) {
+    protected function locate_sourcefile_in_filesystem($filesystems, $filepath, $filename) {
         $source = ltrim($filepath, '/').$filename;
-        foreach ($instances as $instance) {
-            $path = $this->build_node_path($instance, $filepath);
-            if ($listing = $instance->get_listing($path)) {
+        foreach ($filesystems as $filesystem) {
+            $path = $this->build_node_path($filesystem, $filepath);
+            if ($listing = $filesystem->get_listing($path)) {
                 foreach ($listing['list'] as $file) {
-                    if (isset($file['source']) && $file['source']==$source) {
+                    if (array_key_exists('source', $file) && $file['source'] == $source) {
                         return $source;
                     }
                 }
@@ -779,16 +901,147 @@ class tool_fixlinks_form extends moodleform {
     }
 
     /**
+     * fix_file
+     *
+     * @param array  $filesystems of file system repositories
+     * @param object  $file
+     * @return object or false. May update $file
+     * @todo Finish documenting this function
+     */
+    protected function fix_file($filesystems, $contextid, $component, $filearea, $itemid, $filepath, $filename) {
+
+        $fs = get_file_storage();
+        if ($file = $fs->get_file($contextid, $component, $filearea, $itemid, $filepath, $filename)) {
+            if ($file->get_content()) {
+                return false; // File did not need to be fixed.
+            }
+        }
+
+        // File is empty or missing, so try and find it.
+        $file_record = array(
+            'contextid' => $contextid,
+            'component' => $component,
+            'filearea'  => $filearea,
+            'itemid'    => $itemid,
+            'filepath'  => $filepath,
+            'filename'  => $filename,
+        );
+
+        $fullpath = ltrim($filepath.$filename, '/');
+        foreach ($filesystems as $filesystem) {
+
+            $items = $filesystem->search($filename)['list'];
+
+            // Remove files whose filename does not match the given $filename.
+            foreach ($items as $i => $item) {
+                if ($item['title'] == $filename) {
+                    continue;
+                }
+                $items[$i] = null;
+            }
+            $items = array_filter($items);
+
+            if (empty($items)) {
+                continue;
+            }
+
+            // Sort files (most similar to target path)
+            usort($items, function ($a, $b) use ($fullpath, $filename) {
+
+                $alen = strlen($a['path']);
+                $blen = strlen($b['path']);
+
+                $amatch = ($a['title'] == $filename);
+                $bmatch = ($b['title'] == $filename);
+
+                $acount = substr_count($a['path'], '/');
+                $bcount = substr_count($b['path'], '/');
+
+                if ($amatch && $bmatch) {
+                    if ($acount < $bcount) {
+                        return -1;
+                    }
+                    if ($acount > $bcount) {
+                        return 1;
+                    }
+                    if ($alen < $blen) {
+                        return -1;
+                    }
+                    if ($alen > $blen) {
+                        return 1;
+                    }
+                    if ($a['path'] < $b['path']) {
+                        return -1;
+                    }
+                    if ($a['path'] > $b['path']) {
+                        return 1;
+                    }
+                    return 0; // Exactly the same path - shouldn't happen !!
+                }
+
+                if ($amatch) {
+                    return 1;
+                }
+                if ($bmatch) {
+                    return -1;
+                }
+
+                if ($acount < $bcount) {
+                    return -1;
+                }
+                if ($acount > $bcount) {
+                    return 1;
+                }
+
+                $alev = similar_text($fullpath, $a['path']);
+                $blev = similar_text($fullpath, $b['path']);
+                if ($alev < $blev) {
+                    return -1;
+                }
+                if ($alev > $blev) {
+                    return 1;
+                }
+
+                $asim = similar_text($fullpath, $a['path']);
+                $bsim = similar_text($fullpath, $b['path']);
+                return ($asim > $bsim ? -1 : ($asim < $bsim ? 1 : 0));
+            });
+
+            // Get the path of the first (=best) file.
+            // e.g. "hp6.2/jmix.jmx".
+            $path = reset($items)['path'];
+            $filename = basename($path);
+            $filepath = dirname($path);
+            if ($filepath = trim($filepath, '/.')) {
+                $filepath = "/$filepath/";
+            } else {
+                $filepath = '/';
+            }
+            $file_record['filename'] = $filename;
+            $file_record['filepath'] = $filepath;
+
+            // Remove the missing file and create a new one.
+            if ($file) {
+                $file->delete();
+            }
+            if ($file = $fs->create_file_from_reference($file_record, $filesystem->id, $path)) {
+                return $file;
+            }
+        }
+        return false;
+    }
+
+    /**
      *  build_node_path
      *
-     * @param $object repository $instance
+     * @param $object repository $filesystem
      * @param string  $path
      */
-    protected function build_node_path($instance, $path) {
+    protected function build_node_path($filesystem, $path) {
         // in Moodle >= 3.1 this code mimics the protected methods
         // "build_node_path($mode, $path)" in "repository/xxx/lib.php"
-        if (method_exists($instance, 'build_node_path')) {
-            switch (get_class($instance)) {
+        if (method_exists($filesystem, 'build_node_path')) {
+            switch (get_class($filesystem)) {
                 case 'repository_filesystem': return 'browse:'.base64_encode($path).':';
                 case 'repository_googledrive': // same as onedrive, so drop though ...
                 case 'repository_ondedrive': return 'browse|'.urlencode($path);

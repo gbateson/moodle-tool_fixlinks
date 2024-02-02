@@ -2,6 +2,9 @@
 Change log for tool_fixlinks
 ========================================
 
+2024-02-02 (15)
+ - better fix for locating missing files in Taskchain and HotPot
+
 2022-01-23 (13)
  - remove duplicate copy of method to create linebreak
 
